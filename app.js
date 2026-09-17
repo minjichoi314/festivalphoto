@@ -25,54 +25,76 @@ function drawCover(source, x, y, w, h) {
   const cw = w / scale, ch = h / scale;
   ctx.drawImage(source, (sw - cw) / 2, (sh - ch) / 2, cw, ch, x, y, w, h);
 }
-function render() {
-  const w = canvas.width;
-  const ink = '#181845', cream = '#fff8ed', coral = '#ff684d';
-  const accents = ['#ff684d', '#c9f15c', '#66d7e8', '#ffa8d2'];
-  ctx.fillStyle = ink; ctx.fillRect(0, 0, w, canvas.height);
-  // 포스터의 모서리와 상단 리본
-  ctx.fillStyle = coral; ctx.fillRect(0, 0, w, 24);
-  ctx.fillStyle = '#c9f15c'; ctx.fillRect(0, 24, 170, 12);
-  ctx.fillStyle = '#66d7e8'; ctx.fillRect(530, 24, 190, 12);
-  ctx.textAlign = 'left'; ctx.fillStyle = cream;
-  ctx.font = '900 66px system-ui, sans-serif'; ctx.fillText('FESTIVAL', 46, 104);
-  ctx.font = '700 22px system-ui, sans-serif';
-  ctx.fillText('PHOTO BOOTH  /  FOUR CUTS', 50, 143);
-  ctx.fillStyle = '#c9f15c'; ctx.fillRect(610, 62, 52, 52);
-  ctx.save(); ctx.translate(635, 88); ctx.rotate(Math.PI / 4);
-  ctx.fillStyle = ink; ctx.fillRect(-18, -18, 36, 36); ctx.restore();
-
-  const x = 44, frameW = 632, frameH = 336, gap = 15, top = 168;
-  for (let i = 0; i < 4; i++) {
-    const y = top + i * (frameH + gap);
-    ctx.fillStyle = accents[i]; ctx.fillRect(x - 5, y - 5, frameW + 10, frameH + 10);
-    if (photos[i]) drawCover(photos[i], x, y, frameW, frameH);
-    else {
-      ctx.fillStyle = '#292953'; ctx.fillRect(x, y, frameW, frameH);
-      ctx.fillStyle = '#ffffff88'; ctx.textAlign = 'center';
-      ctx.font = '800 32px system-ui, sans-serif';
-      ctx.fillText(`FRAME 0${i + 1}`, w / 2, y + 180);
-    }
-    ctx.fillStyle = accents[i]; ctx.fillRect(x + 14, y + 14, 56, 39);
-    ctx.fillStyle = ink; ctx.textAlign = 'center';
-    ctx.font = '900 21px system-ui, sans-serif';
-    ctx.fillText(`0${i + 1}`, x + 42, y + 41);
+function tornPath(x, y, w, h, notch = 4) {
+  ctx.beginPath(); ctx.moveTo(x, y);
+  for (let px = 0; px <= w; px += 18) ctx.lineTo(x + px, y + ((px / 18) % 3 - 1) * notch);
+  for (let py = 0; py <= h; py += 18) ctx.lineTo(x + w + ((py / 18) % 3 - 1) * notch, y + py);
+  for (let px = w; px >= 0; px -= 18) ctx.lineTo(x + px, y + h + ((px / 18) % 3 - 1) * notch);
+  for (let py = h; py >= 0; py -= 18) ctx.lineTo(x + ((py / 18) % 3 - 1) * notch, y + py);
+  ctx.closePath();
+}
+function flower(x, y, scale, color = '#f8a848') {
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+  ctx.fillStyle = color;
+  for (let i = 0; i < 5; i++) {
+    ctx.save(); ctx.rotate(i * Math.PI * 2 / 5);
+    ctx.beginPath(); ctx.ellipse(0, -13, 8, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
+  ctx.fillStyle = '#fff0a9'; ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawPhoto(i, x, y, angle) {
+  const w = 575, h = 315;
+  ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(angle); ctx.translate(-w / 2, -h / 2);
+  ctx.shadowColor = '#554c3d44'; ctx.shadowBlur = 15; ctx.shadowOffsetY = 11;
+  tornPath(-12, -12, w + 24, h + 24);
+  ctx.fillStyle = '#f6f3eb'; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.save(); tornPath(0, 0, w, h, 2); ctx.clip();
+  if (photos[i]) drawCover(photos[i], 0, 0, w, h);
+  else {
+    ctx.fillStyle = ['#e4ebd8', '#fbe5d3', '#e5ede5', '#f5e7d7'][i]; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#78947e'; ctx.font = '700 30px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.fillText(`PHOTO 0${i + 1}`, w / 2, h / 2 + 10);
+  }
+  ctx.restore();
+  ctx.fillStyle = '#fffdf5bb'; ctx.fillRect(w / 2 - 61, -25, 122, 30); // 마스킹테이프
+  ctx.fillStyle = '#426951'; ctx.font = '700 18px system-ui, sans-serif';
+  ctx.textAlign = 'right'; ctx.fillText(`0${i + 1}`, w - 10, h - 12);
+  ctx.restore();
+}
+function render() {
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = '#fbf7ed'; ctx.fillRect(0, 0, w, h);
+  // 종이의 잔잔한 점무늬
+  ctx.fillStyle = '#c4bda622';
+  for (let py = 28; py < h; py += 43) for (let px = 22; px < w; px += 41) {
+    ctx.beginPath(); ctx.arc(px + (py % 4), py, 1.3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.textAlign = 'center'; ctx.fillStyle = '#327158';
+  ctx.font = '900 58px system-ui, sans-serif'; ctx.fillText('해솔 네컷', w / 2, 89);
+  ctx.strokeStyle = '#ec8c56'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(178, 106); ctx.quadraticCurveTo(360, 118, 542, 105); ctx.stroke();
+  ctx.fillStyle = '#9c886d'; ctx.font = '700 19px system-ui, sans-serif';
+  ctx.fillText('HAESOL  PHOTO DIARY', w / 2, 142);
+  flower(80, 86, 1.1); flower(640, 120, .7, '#eaa777');
 
-  // 하단 타이포그래피와 컨페티
-  ctx.textAlign = 'left'; ctx.fillStyle = cream;
-  ctx.font = '900 64px system-ui, sans-serif'; ctx.fillText('FOUR CUTS', 44, 1655);
-  ctx.fillStyle = coral; ctx.fillRect(45, 1673, 420, 12);
-  ctx.fillStyle = '#c9f15c'; ctx.fillRect(485, 1673, 190, 12);
-  ctx.fillStyle = cream; ctx.font = '700 25px system-ui, sans-serif';
-  ctx.fillText('SCHOOL FESTIVAL', 46, 1733);
-  ctx.textAlign = 'right'; ctx.fillText(new Date().toLocaleDateString('ko-KR'), 674, 1733);
-  for (const [cx, cy, color, angle] of [
-    [56, 1770, coral, .3], [120, 1795, '#c9f15c', -.4],
-    [555, 1782, '#66d7e8', .6], [645, 1794, '#ffa8d2', -.3]
-  ]) {
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle);
-    ctx.fillStyle = color; ctx.fillRect(-14, -4, 28, 8); ctx.restore();
+  drawPhoto(0, 69, 185, -.035);
+  drawPhoto(1, 76, 555, .035);
+  drawPhoto(2, 65, 928, -.028);
+  drawPhoto(3, 78, 1300, .028);
+
+  flower(59, 515, .68); flower(653, 903, .85, '#f4a384');
+  flower(61, 1286, .63, '#ebad63');
+  ctx.fillStyle = '#327158'; ctx.font = '700 26px system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('우리의 축제, 네 장의 기록', w / 2, 1695);
+  ctx.fillStyle = '#9c886d'; ctx.font = '21px system-ui, sans-serif';
+  ctx.fillText(new Date().toLocaleDateString('ko-KR'), w / 2, 1734);
+  ctx.strokeStyle = '#568568'; ctx.lineWidth = 3;
+  for (let x = 0; x < w; x += 16) {
+    const height = 13 + ((x * 7) % 22);
+    ctx.beginPath(); ctx.moveTo(x, h); ctx.lineTo(x - 5, h - height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, h); ctx.lineTo(x + 6, h - height * .8); ctx.stroke();
   }
   progress.textContent = `${photos.length} / 4 촬영`;
 }
