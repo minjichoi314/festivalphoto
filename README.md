@@ -1,1 +1,28 @@
-# festivalphoto
+# GitHub Pages용 학교 축제 네컷
+
+네 장을 촬영해 축제 프레임을 만들고 JPG 다운로드 또는 이메일 발송을 제공합니다. Node.js 서버가 필요 없는 GitHub Pages 버전입니다.
+
+## 1. 이메일 발송 서비스 설정
+
+1. [EmailJS](https://www.emailjs.com/)에서 서비스와 이메일 템플릿을 만듭니다.
+2. 템플릿의 **To Email**을 `{{to_email}}`로 설정합니다. 제목과 본문은 축제 안내에 맞게 작성합니다. 수신 주소를 고정값으로 두면 학생에게 전송되지 않습니다.
+3. 템플릿의 **Attachments**에서 **Variable Attachment**를 추가합니다. Filename `festival-four-cuts.jpg`, Content type `image/jpeg`(또는 JPEG), Parameter name `content`로 설정합니다.
+4. `config.js`에 Service ID, Template ID, Public Key를 입력합니다. SMTP 암호나 Private Key는 절대 넣지 마세요.
+5. EmailJS의 허용 도메인 설정에 실제 `https://사용자명.github.io` 출처를 등록하고, 행사 전에 메일 발송 한도와 외부 메일 수신 여부를 확인합니다.
+
+EmailJS 템플릿에 `{{content}}`를 본문 텍스트로 넣지 마세요. 이미지 데이터는 첨부파일 매개변수로만 사용합니다.
+
+## 2. GitHub Pages 게시
+
+1. 이 폴더의 **파일들**(`index.html`, `app.js`, `style.css`, `config.js`, `.nojekyll`)을 GitHub 저장소의 루트에 올립니다.
+2. 저장소의 **Settings → Pages → Build and deployment**에서 **Deploy from a branch**, `main` 브랜치, `/ (root)`를 선택합니다.
+3. 표시된 `https://사용자명.github.io/저장소명/` 주소를 태블릿에서 엽니다. 카메라 권한을 허용합니다.
+
+GitHub Pages의 HTTPS 주소에서 브라우저 카메라를 사용할 수 있습니다. 사진은 페이지 서버에 저장하지 않으며, 이메일 버튼을 누르면 이미지와 수신 주소가 EmailJS로 전달됩니다. 오프라인 이용 중에는 사진 저장만 가능합니다.
+
+## 현장 점검
+
+- 실제 태블릿으로 카메라, 사진 방향, 첨부파일, 수신함과 스팸함을 확인하세요.
+- 공용 태블릿에서 자동 완성을 끄고, 다음 팀 전에 **다시 찍기**를 누르세요.
+- 사진 및 이메일 주소의 외부 발송에 대한 학교 안내와 동의 절차를 확인하세요.
+- 공개 페이지의 발송 기능에는 오용 위험이 있으므로 EmailJS 허용 도메인과 서비스 발송 제한을 설정하세요.
