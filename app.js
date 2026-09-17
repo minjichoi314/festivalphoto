@@ -1,5 +1,18 @@
 import { EMAILJS } from "./config.js";
 const video = document.querySelector('#video');
+const livePreview = document.querySelector('#livePreview');
+const liveCtx = livePreview.getContext('2d');
+const inputFrame = document.createElement('canvas');
+inputFrame.width = livePreview.width; inputFrame.height = livePreview.height;
+const inputCtx = inputFrame.getContext('2d');
+const backgroundButton = document.querySelector('#background');
+const stage = new Image(); stage.src = './stage.svg';
+let backgroundOn = true;
+let segmenter = null;
+let cameraLoop = 0;
+let rendering = false;
+let lastProcessed = 0;
+let hasLiveFrame = false;
 const canvas = document.querySelector('#preview');
 const ctx = canvas.getContext('2d');
 const status = document.querySelector('#status');
@@ -25,6 +38,59 @@ function drawCover(source, x, y, w, h) {
   const cw = w / scale, ch = h / scale;
   ctx.drawImage(source, (sw - cw) / 2, (sh - ch) / 2, cw, ch, x, y, w, h);
 }
+
+function coverTo(context, source, width, height) {
+  const sw = source.videoWidth || source.width;
+  const sh = source.videoHeight || source.height;
+  const scale = Math.max(width / sw, height / sh);
+  context.drawImage(source, (sw - width / scale) / 2, (sh - height / scale) / 2,
+    width / scale, height / scale, 0, 0, width, height);
+}
+function drawLive(results) {
+  const width = livePreview.width, height = livePreview.height;
+  liveCtx.clearRect(0, 0, width, height);
+  if (backgroundOn && results?.segmentationMask && stage.complete && stage.naturalWidth) {
+    liveCtx.drawImage(results.segmentationMask, 0, 0, width, height);
+    liveCtx.globalCompositeOperation = 'source-in';
+    coverTo(liveCtx, results.image, width, height);
+    liveCtx.globalCompositeOperation = 'destination-over';
+    coverTo(liveCtx, stage, width, height);
+    liveCtx.globalCompositeOperation = 'source-over';
+  } else if (video.videoWidth) coverTo(liveCtx, video, width, height);
+  hasLiveFrame = true;
+}
+async function initBackground() {
+  if (!window.SelfieSegmentation) throw new Error('배경 분리 프로그램을 불러오지 못했습니다.');
+  segmenter = new window.SelfieSegmentation({
+    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+  });
+  segmenter.setOptions({ modelSelection: 1 });
+  segmenter.onResults(drawLive);
+}
+async function updateCamera(time) {
+  if (!stream) return;
+  cameraLoop = requestAnimationFrame(updateCamera);
+  if (rendering || video.readyState < 2 || time - lastProcessed < 85) return;
+  rendering = true; lastProcessed = time;
+  try {
+    if (backgroundOn && segmenter) {
+      coverTo(inputCtx, video, inputFrame.width, inputFrame.height);
+      await segmenter.send({ image: inputFrame });
+    } else drawLive();
+  } catch {
+    backgroundOn = false; backgroundButton.textContent = '공연장 배경 꺼짐';
+    drawLive(); message('배경 분리가 지원되지 않아 기본 카메라로 촬영합니다.');
+  } finally { rendering = false; }
+}
+backgroundButton.addEventListener('click', async () => {
+  backgroundOn = !backgroundOn;
+  if (backgroundOn && !segmenter) {
+    try { await initBackground(); } catch { backgroundOn = false; message('배경 분리 프로그램을 불러오지 못했습니다. 네트워크를 확인해 주세요.'); }
+  }
+  backgroundButton.textContent = backgroundOn ? '공연장 배경 켜짐' : '공연장 배경 꺼짐';
+  if (!backgroundOn) drawLive();
+});
+
 function tornPath(x, y, w, h, notch = 4) {
   ctx.beginPath(); ctx.moveTo(x, y);
   for (let px = 0; px <= w; px += 18) ctx.lineTo(x + px, y + ((px / 18) % 3 - 1) * notch);
@@ -106,16 +172,21 @@ function reset() {
 }
 start.addEventListener('click', async () => {
   try {
-    stream?.getTracks().forEach(track => track.stop());
+    cancelAnimationFrame(cameraLoop); stream?.getTracks().forEach(track => track.stop());
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
-    video.srcObject = stream;
-    await video.play(); start.disabled = true; shoot.disabled = false;
+    hasLiveFrame = false; video.srcObject = stream;
+    await video.play(); start.disabled = true; shoot.disabled = false; backgroundButton.disabled = false;
+    if (backgroundOn && !segmenter) {
+      try { message('공연장 배경을 준비하고 있어요…'); await initBackground(); }
+      catch { backgroundOn = false; backgroundButton.textContent = '공연장 배경 꺼짐'; message('배경 기능을 불러오지 못해 기본 카메라를 사용합니다.'); }
+    }
+    cameraLoop = requestAnimationFrame(updateCamera);
     document.querySelector('#cameraHint').textContent = '화면에는 거울처럼 보이고 사진도 같은 방향으로 저장돼요.';
     message('준비됐어요. 네 장 촬영을 눌러 주세요.');
   } catch { message('카메라를 열 수 없어요. 브라우저 권한과 HTTPS 연결을 확인해 주세요.'); }
 });
 shoot.addEventListener('click', async () => {
-  if (busy || !stream || video.videoWidth === 0) return;
+  if (busy || !stream || video.videoWidth === 0 || !hasLiveFrame) return;
   busy = true; shoot.disabled = true; retry.disabled = true; send.disabled = true;
   photos = []; ready = false; render();
   try {
@@ -126,9 +197,7 @@ shoot.addEventListener('click', async () => {
       const shot = document.createElement('canvas'); shot.width = 600; shot.height = 340;
       const shotCtx = shot.getContext('2d');
       shotCtx.translate(600, 0); shotCtx.scale(-1, 1);
-      const sw = video.videoWidth, sh = video.videoHeight;
-      const scale = Math.max(600 / sw, 340 / sh);
-      shotCtx.drawImage(video, (sw - 600 / scale) / 2, (sh - 340 / scale) / 2, 600 / scale, 340 / scale, 0, 0, 600, 340);
+      coverTo(shotCtx, livePreview, 600, 340);
       photos.push(shot); render(); await pause(400); countdown.textContent = '';
     }
     ready = true; send.disabled = false; download.disabled = false; message('완성! 이메일을 입력해 사진을 보내세요.');
@@ -164,5 +233,5 @@ form.addEventListener('submit', async event => {
   } catch (error) { message(error.message); send.disabled = false; }
   finally { busy = false; retry.disabled = false; }
 });
-window.addEventListener('pagehide', () => stream?.getTracks().forEach(track => track.stop()));
+window.addEventListener('pagehide', () => { cancelAnimationFrame(cameraLoop); stream?.getTracks().forEach(track => track.stop()); });
 render();
