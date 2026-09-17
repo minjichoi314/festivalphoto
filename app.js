@@ -27,32 +27,56 @@ function drawCover(source, x, y, w, h) {
 }
 function render() {
   const w = canvas.width;
-  const palette = ['#f6d6e8', '#dfebff', '#ffeac5', '#dcf4d9'];
-  ctx.fillStyle = '#35245f'; ctx.fillRect(0, 0, w, canvas.height);
-  ctx.fillStyle = '#fff7ee'; ctx.fillRect(22, 22, w - 44, canvas.height - 44);
-  ctx.fillStyle = '#6d46c6'; ctx.textAlign = 'center';
-  ctx.font = 'bold 35px sans-serif'; ctx.fillText('✦ 우리 학교 축제 ✦', w / 2, 77);
-  const x = 60, frameW = 600, frameH = 340, gap = 16, top = 106;
+  const ink = '#181845', cream = '#fff8ed', coral = '#ff684d';
+  const accents = ['#ff684d', '#c9f15c', '#66d7e8', '#ffa8d2'];
+  ctx.fillStyle = ink; ctx.fillRect(0, 0, w, canvas.height);
+  // 포스터의 모서리와 상단 리본
+  ctx.fillStyle = coral; ctx.fillRect(0, 0, w, 24);
+  ctx.fillStyle = '#c9f15c'; ctx.fillRect(0, 24, 170, 12);
+  ctx.fillStyle = '#66d7e8'; ctx.fillRect(530, 24, 190, 12);
+  ctx.textAlign = 'left'; ctx.fillStyle = cream;
+  ctx.font = '900 66px system-ui, sans-serif'; ctx.fillText('FESTIVAL', 46, 104);
+  ctx.font = '700 22px system-ui, sans-serif';
+  ctx.fillText('PHOTO BOOTH  /  FOUR CUTS', 50, 143);
+  ctx.fillStyle = '#c9f15c'; ctx.fillRect(610, 62, 52, 52);
+  ctx.save(); ctx.translate(635, 88); ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = ink; ctx.fillRect(-18, -18, 36, 36); ctx.restore();
+
+  const x = 44, frameW = 632, frameH = 336, gap = 15, top = 168;
   for (let i = 0; i < 4; i++) {
     const y = top + i * (frameH + gap);
-    ctx.fillStyle = palette[i]; ctx.fillRect(x - 5, y - 5, frameW + 10, frameH + 10);
+    ctx.fillStyle = accents[i]; ctx.fillRect(x - 5, y - 5, frameW + 10, frameH + 10);
     if (photos[i]) drawCover(photos[i], x, y, frameW, frameH);
     else {
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, frameW, frameH);
-      ctx.fillStyle = '#a892bd'; ctx.font = 'bold 45px sans-serif'; ctx.fillText(`${i + 1}번째 순간`, w / 2, y + 185);
+      ctx.fillStyle = '#292953'; ctx.fillRect(x, y, frameW, frameH);
+      ctx.fillStyle = '#ffffff88'; ctx.textAlign = 'center';
+      ctx.font = '800 32px system-ui, sans-serif';
+      ctx.fillText(`FRAME 0${i + 1}`, w / 2, y + 180);
     }
-    ctx.fillStyle = '#fff'; ctx.fillRect(x + 12, y + 12, 40, 40);
-    ctx.fillStyle = '#6d46c6'; ctx.font = 'bold 27px sans-serif'; ctx.fillText(String(i + 1), x + 32, y + 42);
+    ctx.fillStyle = accents[i]; ctx.fillRect(x + 14, y + 14, 56, 39);
+    ctx.fillStyle = ink; ctx.textAlign = 'center';
+    ctx.font = '900 21px system-ui, sans-serif';
+    ctx.fillText(`0${i + 1}`, x + 42, y + 41);
   }
-  ctx.fillStyle = '#6d46c6'; ctx.font = 'bold 42px sans-serif';
-  ctx.fillText('★ 오늘의 우리 ★', w / 2, 1595);
-  ctx.fillStyle = '#ee668c'; ctx.font = '30px sans-serif';
-  ctx.fillText('FUN  •  FRIENDS  •  FESTIVAL', w / 2, 1650);
-  ctx.fillStyle = '#765d96'; ctx.font = '24px sans-serif';
-  ctx.fillText(new Date().toLocaleDateString('ko-KR'), w / 2, 1710);
-  ctx.font = '42px sans-serif'; ctx.fillText('✦   ♥   ✿   ★   ✦', w / 2, 1780);
+
+  // 하단 타이포그래피와 컨페티
+  ctx.textAlign = 'left'; ctx.fillStyle = cream;
+  ctx.font = '900 64px system-ui, sans-serif'; ctx.fillText('FOUR CUTS', 44, 1655);
+  ctx.fillStyle = coral; ctx.fillRect(45, 1673, 420, 12);
+  ctx.fillStyle = '#c9f15c'; ctx.fillRect(485, 1673, 190, 12);
+  ctx.fillStyle = cream; ctx.font = '700 25px system-ui, sans-serif';
+  ctx.fillText('SCHOOL FESTIVAL', 46, 1733);
+  ctx.textAlign = 'right'; ctx.fillText(new Date().toLocaleDateString('ko-KR'), 674, 1733);
+  for (const [cx, cy, color, angle] of [
+    [56, 1770, coral, .3], [120, 1795, '#c9f15c', -.4],
+    [555, 1782, '#66d7e8', .6], [645, 1794, '#ffa8d2', -.3]
+  ]) {
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle);
+    ctx.fillStyle = color; ctx.fillRect(-14, -4, 28, 8); ctx.restore();
+  }
   progress.textContent = `${photos.length} / 4 촬영`;
 }
+
 function reset() {
   photos = []; ready = false; busy = false; email.value = '';
   shoot.disabled = !stream; retry.disabled = true; send.disabled = true; download.disabled = true;
