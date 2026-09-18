@@ -1,17 +1,8 @@
-import { EMAILJS } from "./config.js";
+import { MAIL_WEB_APP_URL } from "./config.js";
 const video = document.querySelector('#video');
 const livePreview = document.querySelector('#livePreview');
 const liveCtx = livePreview.getContext('2d');
-const inputFrame = document.createElement('canvas');
-inputFrame.width = livePreview.width; inputFrame.height = livePreview.height;
-const inputCtx = inputFrame.getContext('2d');
-const backgroundButton = document.querySelector('#background');
-const stage = new Image(); stage.src = './stage.svg';
-let backgroundOn = true;
-let segmenter = null;
 let cameraLoop = 0;
-let rendering = false;
-let lastProcessed = 0;
 let hasLiveFrame = false;
 const canvas = document.querySelector('#preview');
 const ctx = canvas.getContext('2d');
@@ -46,50 +37,17 @@ function coverTo(context, source, width, height) {
   context.drawImage(source, (sw - width / scale) / 2, (sh - height / scale) / 2,
     width / scale, height / scale, 0, 0, width, height);
 }
-function drawLive(results) {
+function drawLive() {
   const width = livePreview.width, height = livePreview.height;
   liveCtx.clearRect(0, 0, width, height);
-  if (backgroundOn && results?.segmentationMask && stage.complete && stage.naturalWidth) {
-    liveCtx.drawImage(results.segmentationMask, 0, 0, width, height);
-    liveCtx.globalCompositeOperation = 'source-in';
-    coverTo(liveCtx, results.image, width, height);
-    liveCtx.globalCompositeOperation = 'destination-over';
-    coverTo(liveCtx, stage, width, height);
-    liveCtx.globalCompositeOperation = 'source-over';
-  } else if (video.videoWidth) coverTo(liveCtx, video, width, height);
+  if (video.videoWidth) coverTo(liveCtx, video, width, height);
   hasLiveFrame = true;
 }
-async function initBackground() {
-  if (!window.SelfieSegmentation) throw new Error('배경 분리 프로그램을 불러오지 못했습니다.');
-  segmenter = new window.SelfieSegmentation({
-    locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-  });
-  segmenter.setOptions({ modelSelection: 1 });
-  segmenter.onResults(drawLive);
-}
-async function updateCamera(time) {
+function updateCamera() {
   if (!stream) return;
   cameraLoop = requestAnimationFrame(updateCamera);
-  if (rendering || video.readyState < 2 || time - lastProcessed < 85) return;
-  rendering = true; lastProcessed = time;
-  try {
-    if (backgroundOn && segmenter) {
-      coverTo(inputCtx, video, inputFrame.width, inputFrame.height);
-      await segmenter.send({ image: inputFrame });
-    } else drawLive();
-  } catch {
-    backgroundOn = false; backgroundButton.textContent = '공연장 배경 꺼짐';
-    drawLive(); message('배경 분리가 지원되지 않아 기본 카메라로 촬영합니다.');
-  } finally { rendering = false; }
+  if (video.readyState >= 2) drawLive();
 }
-backgroundButton.addEventListener('click', async () => {
-  backgroundOn = !backgroundOn;
-  if (backgroundOn && !segmenter) {
-    try { await initBackground(); } catch { backgroundOn = false; message('배경 분리 프로그램을 불러오지 못했습니다. 네트워크를 확인해 주세요.'); }
-  }
-  backgroundButton.textContent = backgroundOn ? '공연장 배경 켜짐' : '공연장 배경 꺼짐';
-  if (!backgroundOn) drawLive();
-});
 
 function tornPath(x, y, w, h, notch = 4) {
   ctx.beginPath(); ctx.moveTo(x, y);
@@ -175,11 +133,7 @@ start.addEventListener('click', async () => {
     cancelAnimationFrame(cameraLoop); stream?.getTracks().forEach(track => track.stop());
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
     hasLiveFrame = false; video.srcObject = stream;
-    await video.play(); start.disabled = true; shoot.disabled = false; backgroundButton.disabled = false;
-    if (backgroundOn && !segmenter) {
-      try { message('공연장 배경을 준비하고 있어요…'); await initBackground(); }
-      catch { backgroundOn = false; backgroundButton.textContent = '공연장 배경 꺼짐'; message('배경 기능을 불러오지 못해 기본 카메라를 사용합니다.'); }
-    }
+    await video.play(); start.disabled = true; shoot.disabled = false;
     cameraLoop = requestAnimationFrame(updateCamera);
     document.querySelector('#cameraHint').textContent = '화면에는 거울처럼 보이고 사진도 같은 방향으로 저장돼요.';
     message('준비됐어요. 네 장 촬영을 눌러 주세요.');
@@ -211,27 +165,21 @@ download.addEventListener('click', () => {
   link.href = canvas.toDataURL('image/jpeg', .85);
   link.click();
 });
-form.addEventListener('submit', async event => {
+form.addEventListener('submit', event => {
   event.preventDefault();
   if (!ready || busy || !form.reportValidity()) return;
-  if (Object.values(EMAILJS).some(value => !value || value.startsWith('YOUR_'))) {
-    message('관리자 설정이 필요합니다. config.js의 EmailJS 값을 입력해 주세요.'); return;
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(MAIL_WEB_APP_URL)) {
+    message('관리자 설정이 필요합니다. config.js에 배포된 웹 앱 주소를 입력해 주세요.'); return;
   }
-  busy = true; send.disabled = true; retry.disabled = true; message('이메일을 보내고 있어요…');
-  try {
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: EMAILJS.serviceId, template_id: EMAILJS.templateId, user_id: EMAILJS.publicKey,
-        template_params: { to_email: email.value.trim(), content: canvas.toDataURL('image/jpeg', .85) }
-      })
-    });
-    if (!response.ok) throw new Error('메일 전송에 실패했습니다. 담당자에게 알려 주세요.');
-    message('전송 완료! 받은편지함을 확인해 주세요. 다음 팀은 다시 찍기를 눌러 주세요.');
-    email.value = ''; ready = false;
-  } catch (error) { message(error.message); send.disabled = false; }
-  finally { busy = false; retry.disabled = false; }
+  // 일반 HTML 폼 제출: 별도 결과 탭에 서버의 성공/실패를 표시합니다.
+  form.action = MAIL_WEB_APP_URL;
+  form.method = 'POST';
+  form.target = '_blank';
+  document.querySelector('#photoData').value = canvas.toDataURL('image/jpeg', .82).split(',')[1];
+  document.querySelector('#email').value = email.value.trim();
+  HTMLFormElement.prototype.submit.call(form);
+  document.querySelector('#photoData').value = '';
+  message('전송 결과가 새 탭에 표시됩니다. 결과를 확인한 뒤 다음 팀은 다시 찍기를 눌러 주세요.');
 });
 window.addEventListener('pagehide', () => { cancelAnimationFrame(cameraLoop); stream?.getTracks().forEach(track => track.stop()); });
 render();
